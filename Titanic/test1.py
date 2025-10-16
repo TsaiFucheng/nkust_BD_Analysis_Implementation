@@ -34,7 +34,16 @@ df_titanic.columns = columns_t
 # display(df_titanic.describe())
 # display(df_titanic.groupby("性別").mean(numeric_only=True))
 
-columns_n = ['生還', '艙等', '年齡', '手足與配偶數', '父母與子女數', '票價']
-plt.rcParams['figure.figsize'] = (10,10)
-df_titanic[columns_n].hist()
+# columns_n = ['生還', '艙等', '年齡', '手足與配偶數', '父母與子女數', '票價']
+# plt.rcParams['figure.figsize'] = (10,10)
+# df_titanic[columns_n].hist()
+# plt.show()
+
+columns_c = ["性別","乘船港","艙等名","成人男子"]
+plt.rcParams['figure.figsize'] = (8,8)
+for i,name in enumerate(columns_c):
+    ax = plt.subplot(2,2,i+1)
+    df_titanic[name].value_counts().plot(kind='bar',title=name,ax=ax)
+
+plt.tight_layout()
 plt.show()
