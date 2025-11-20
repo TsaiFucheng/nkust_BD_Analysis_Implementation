@@ -30,7 +30,6 @@ np.set_printoptions(suppress=True, precision=4)
 pd.options.display.float_format = '{:.4f}'.format
 pd.set_option("display.max_columns", None)
 
-# 中文字體設定 (跨平台)
 import platform
 system = platform.system()
 if system == 'Windows':
@@ -47,7 +46,6 @@ print("=" * 70)
 print("大數據資料分析實作 - Week 10 分類模型演算法進階練習")
 print("=" * 70)
 
-# 確保 outputs 資料夾存在
 import os
 if not os.path.exists('./outputs'):
     os.makedirs('./outputs')
@@ -464,23 +462,3 @@ plt.tight_layout()
 plt.savefig('./outputs/mlp_architecture_comparison.png', dpi=150, bbox_inches='tight')
 print("\n✓ 神經網路架構比較圖已儲存: mlp_architecture_comparison.png")
 plt.close()
-
-# ============================
-# 總結報告
-# ============================
-
-print("\n" + "=" * 70)
-print("所有練習完成！")
-print("=" * 70)
-
-print("\n生成的檔案:")
-print("  1. activation_functions_comparison.png    - 激活函數比較")
-print("  2. svm_kernels_comparison.png             - SVM 核函數比較")
-print("  3. svm_c_parameter_comparison.png         - SVM C 參數調整")
-print("  4. svm_gamma_parameter_comparison.png     - SVM Gamma 參數調整")
-print("  5. svm_gridsearch_best_model.png          - GridSearchCV 最佳模型")
-print("  6. gridsearch_results.csv                 - GridSearchCV 詳細結果")
-print("  7. mlp_architecture_comparison.png        - 神經網路架構比較")
-
-print("\n✓ Week 10 所有練習完成！")
-print("=" * 70)
