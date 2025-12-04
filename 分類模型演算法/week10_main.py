@@ -47,7 +47,7 @@ print("大數據資料分析實作 - Week 10 分類模型演算法進階練習")
 print("=" * 70)
 
 import os
-if not os.path.exists('./outputs'):
+if not os.path.exists('./outputs/week10'):
     os.makedirs('./outputs')
     print("\n✓ 已創建 outputs 資料夾")
 
