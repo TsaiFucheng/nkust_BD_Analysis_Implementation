@@ -1,47 +1,55 @@
 """
-大數據資料分析實作 - Week 14 & 15 模型評估
-Model Evaluation
+大數據資料分析實作 - Week 14 & 15 期末報告
+Binary Classification Model Evaluation - Breast Cancer Dataset
 
-本腳本實作PDF中提到的模型評估方法：
-Part 1: 二元分類評估 (Binary Classification Evaluation)
-    - 混淆矩陣 (Confusion Matrix)
-    - 精確率、召回率、F1-score (Precision, Recall, F1-score)
-    - PR 曲線 (Precision-Recall Curve)
-    - ROC 曲線 (Receiver Operating Characteristic Curve)
+本程式實作課程 PDF 中的 8 步驟大數據分析流程：
+1. 載入資料 (Load Data)
+2. 了解資料 (Understand Data)
+3. 資料預處理 (Preprocess Data)
+4. 分割資料 (Split Data)
+5. 選擇演算法 (Select Algorithm)
+6. 訓練模型 (Train Model)
+7. 預測結果 (Predict)
+8. 評估模型 (Evaluate Model)
 
-Part 2: 迴歸評估 (Regression Evaluation)
-    - MSE (Mean Squared Error)
-    - RMSE (Root Mean Squared Error)
-    - MAE (Mean Absolute Error)
-    - R² (Coefficient of Determination)
+評估指標包含：
+- 準確率 (Accuracy)
+- 混淆矩陣 (Confusion Matrix)
+- 精確率 (Precision)
+- 召回率 (Recall)
+- F1-score
+- ROC 曲線與 AUC
+- PR 曲線
 """
 
 # ============================
-# 步驟1: 安裝與設定
+# 環境設定
 # ============================
 
 import warnings
-# warnings.filterwarnings('ignore') 我習慣不使用
-
 import sys
 import io
-
-# 設定 stdout 編碼為 UTF-8（解決 Windows 終端機編碼問題）
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+import os
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import seaborn as sns
+
+# Windows 中文編碼支持
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # 設定隨機種子
 random_seed = 123
+np.random.seed(random_seed)
 
+# 數值顯示設定
 np.set_printoptions(suppress=True, precision=4)
 pd.options.display.float_format = '{:.4f}'.format
 pd.set_option("display.max_columns", None)
 
+# 跨平台中文字型設定
 import platform
 system = platform.system()
 if system == 'Windows':
@@ -52,614 +60,508 @@ else:
     plt.rcParams['font.sans-serif'] = ['Noto Sans CJK TC', 'WenQuanYi Micro Hei']
 
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams["font.size"] = 14
+plt.rcParams["font.size"] = 12
 
 # 建立輸出資料夾
 output_dir = './outputs/week14_15'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
+    print(f"已建立輸出資料夾: {output_dir}")
 
-print("=" * 60)
-print("大數據資料分析實作 - Week 14 & 15 模型評估")
-print("=" * 60)
-
-# ============================
-# Part 1: 二元分類評估
-# Binary Classification Evaluation
-# ============================
-
-print("\n" + "=" * 60)
-print("Part 1: 二元分類評估 (Binary Classification)")
-print("=" * 60)
+print("=" * 70)
+print("大數據資料分析實作 - Week 14 & 15 期末報告")
+print("二元分類模型評估 - 乳癌資料集 (Breast Cancer Wisconsin)")
+print("=" * 70)
 
 # ============================
-# 步驟2: 載入資料集
+# 步驟 1: 載入資料 (Load Data)
 # ============================
+
+print("\n" + "=" * 70)
+print("步驟 1: 載入資料 (Load Data)")
+print("=" * 70)
 
 from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import train_test_split
-
-print("\n[步驟1] 載入 Breast Cancer 資料集...")
 
 # 載入乳癌資料集
 cancer = load_breast_cancer()
+
+print(f"\n資料集名稱: {cancer.filename if hasattr(cancer, 'filename') else 'Breast Cancer Wisconsin'}")
+print(f"樣本數量: {cancer.data.shape[0]}")
+print(f"特徵數量: {cancer.data.shape[1]}")
+print(f"類別名稱: {cancer.target_names}")
+print(f"  - 0: {cancer.target_names[0]} (惡性)")
+print(f"  - 1: {cancer.target_names[1]} (良性)")
+
+# ============================
+# 步驟 2: 了解資料 (Understand Data)
+# ============================
+
+print("\n" + "=" * 70)
+print("步驟 2: 了解資料 (Understand Data)")
+print("=" * 70)
+
+# 建立 DataFrame
+df = pd.DataFrame(cancer.data, columns=cancer.feature_names)
+df['target'] = cancer.target
+df['diagnosis'] = df['target'].map({0: 'malignant', 1: 'benign'})
+
+print("\n--- 資料集前 5 筆 ---")
+print(df.head())
+
+print("\n--- 資料統計摘要 ---")
+print(df.describe())
+
+print("\n--- 類別分布 ---")
+class_counts = df['diagnosis'].value_counts()
+print(class_counts)
+print(f"\n惡性 (malignant): {class_counts['malignant']} 筆 ({class_counts['malignant']/len(df)*100:.1f}%)")
+print(f"良性 (benign): {class_counts['benign']} 筆 ({class_counts['benign']/len(df)*100:.1f}%)")
+
+# 視覺化類別分布
+plt.figure(figsize=(8, 5))
+colors = ['#ff6b6b', '#4ecdc4']
+bars = plt.bar(class_counts.index, class_counts.values, color=colors, edgecolor='black')
+plt.title('乳癌資料集類別分布', fontsize=14, fontweight='bold')
+plt.xlabel('診斷結果')
+plt.ylabel('樣本數量')
+for bar, count in zip(bars, class_counts.values):
+    plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
+             str(count), ha='center', va='bottom', fontsize=12)
+plt.tight_layout()
+plt.savefig(f'{output_dir}/class_distribution.png', dpi=150, bbox_inches='tight')
+plt.close()
+print(f"\n已儲存: {output_dir}/class_distribution.png")
+
+# ============================
+# 步驟 3: 資料預處理 (Preprocess Data)
+# ============================
+
+print("\n" + "=" * 70)
+print("步驟 3: 資料預處理 (Preprocess Data)")
+print("=" * 70)
+
+# 檢查缺失值
+print("\n--- 檢查缺失值 ---")
+missing = df.isnull().sum().sum()
+print(f"缺失值總數: {missing}")
+
+# 準備特徵與標籤
 X = cancer.data
 y = cancer.target
-feature_names = cancer.feature_names
-target_names = cancer.target_names
 
-print(f"   資料集大小: {X.shape[0]} 筆資料, {X.shape[1]} 個特徵")
-print(f"   目標類別: {target_names}")
-print(f"   類別分布: 惡性(0)={sum(y==0)}, 良性(1)={sum(y==1)}")
+print(f"\n特徵矩陣 X 形狀: {X.shape}")
+print(f"標籤向量 y 形狀: {y.shape}")
 
-# 分割訓練集與測試集
+# 特徵標準化
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+print("\n--- 特徵標準化 (StandardScaler) ---")
+print(f"標準化前 - 平均值範圍: [{X.mean(axis=0).min():.2f}, {X.mean(axis=0).max():.2f}]")
+print(f"標準化後 - 平均值範圍: [{X_scaled.mean(axis=0).min():.4f}, {X_scaled.mean(axis=0).max():.4f}]")
+print(f"標準化後 - 標準差範圍: [{X_scaled.std(axis=0).min():.4f}, {X_scaled.std(axis=0).max():.4f}]")
+
+# ============================
+# 步驟 4: 分割資料 (Split Data)
+# ============================
+
+print("\n" + "=" * 70)
+print("步驟 4: 分割資料 (Split Data)")
+print("=" * 70)
+
+from sklearn.model_selection import train_test_split
+
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=random_seed
+    X_scaled, y,
+    test_size=0.2,
+    random_state=random_seed,
+    stratify=y  # 保持類別比例
 )
 
-print(f"\n   訓練集大小: {X_train.shape[0]} 筆")
-print(f"   測試集大小: {X_test.shape[0]} 筆")
+print(f"\n訓練集大小: {X_train.shape[0]} 筆 ({X_train.shape[0]/len(y)*100:.0f}%)")
+print(f"測試集大小: {X_test.shape[0]} 筆 ({X_test.shape[0]/len(y)*100:.0f}%)")
+print(f"\n訓練集類別分布:")
+print(f"  - 惡性 (0): {(y_train == 0).sum()} 筆")
+print(f"  - 良性 (1): {(y_train == 1).sum()} 筆")
+print(f"\n測試集類別分布:")
+print(f"  - 惡性 (0): {(y_test == 0).sum()} 筆")
+print(f"  - 良性 (1): {(y_test == 1).sum()} 筆")
 
 # ============================
-# 步驟3: 訓練模型
+# 步驟 5: 選擇演算法 (Select Algorithm)
 # ============================
+
+print("\n" + "=" * 70)
+print("步驟 5: 選擇演算法 (Select Algorithm)")
+print("=" * 70)
 
 from sklearn.linear_model import LogisticRegression
 
-print("\n[步驟2] 訓練 Logistic Regression 模型...")
+print("\n選擇演算法: 邏輯斯迴歸 (Logistic Regression)")
+print("\n選擇原因:")
+print("  1. 適用於二元分類問題")
+print("  2. 輸出機率值，方便調整分類閾值")
+print("  3. 模型可解釋性高")
+print("  4. 訓練速度快，適合中等規模資料集")
 
-# 訓練羅吉斯迴歸模型
-model = LogisticRegression(max_iter=10000, random_state=random_seed)
+model = LogisticRegression(
+    random_state=random_seed,
+    max_iter=1000,
+    solver='lbfgs'
+)
+
+print(f"\n模型參數:")
+print(f"  - solver: {model.solver}")
+print(f"  - max_iter: {model.max_iter}")
+print(f"  - random_state: {model.random_state}")
+
+# ============================
+# 步驟 6: 訓練模型 (Train Model)
+# ============================
+
+print("\n" + "=" * 70)
+print("步驟 6: 訓練模型 (Train Model)")
+print("=" * 70)
+
 model.fit(X_train, y_train)
 
-# 計算準確率
-train_accuracy = model.score(X_train, y_train)
-test_accuracy = model.score(X_test, y_test)
+print("\n模型訓練完成!")
+print(f"模型截距 (intercept): {model.intercept_[0]:.4f}")
+print(f"模型係數數量: {len(model.coef_[0])}")
 
-print(f"   訓練準確率: {train_accuracy:.4f}")
-print(f"   測試準確率: {test_accuracy:.4f}")
+# 顯示前 5 個最重要的特徵
+feature_importance = pd.DataFrame({
+    'feature': cancer.feature_names,
+    'coefficient': model.coef_[0]
+}).sort_values('coefficient', key=abs, ascending=False)
 
-# 進行預測
+print("\n前 5 個最重要的特徵 (依係數絕對值排序):")
+print(feature_importance.head())
+
+# ============================
+# 步驟 7: 預測結果 (Predict)
+# ============================
+
+print("\n" + "=" * 70)
+print("步驟 7: 預測結果 (Predict)")
+print("=" * 70)
+
+# 預測類別
 y_pred = model.predict(X_test)
-y_proba = model.predict_proba(X_test)
-y_proba1 = y_proba[:, 1]  # 類別1（良性）的機率
 
-print(f"\n   預測結果範例 (前5筆):")
-print(f"   實際值: {y_test[:5]}")
-print(f"   預測值: {y_pred[:5]}")
-print(f"   預測機率(類別1): {y_proba1[:5].round(4)}")
+# 預測機率
+y_pred_proba = model.predict_proba(X_test)
+
+print(f"\n預測完成!")
+print(f"預測類別形狀: {y_pred.shape}")
+print(f"預測機率形狀: {y_pred_proba.shape}")
+
+print("\n--- 預測結果範例 (前 10 筆) ---")
+pred_df = pd.DataFrame({
+    '實際值': y_test[:10],
+    '預測值': y_pred[:10],
+    '惡性機率': y_pred_proba[:10, 0],
+    '良性機率': y_pred_proba[:10, 1]
+})
+print(pred_df)
 
 # ============================
-# 步驟4: 混淆矩陣 (Confusion Matrix)
+# 步驟 8: 評估模型 (Evaluate Model)
 # ============================
 
-from sklearn.metrics import confusion_matrix
+print("\n" + "=" * 70)
+print("步驟 8: 評估模型 (Evaluate Model)")
+print("=" * 70)
 
+from sklearn.metrics import (
+    accuracy_score, confusion_matrix, classification_report,
+    precision_score, recall_score, f1_score,
+    roc_curve, auc, precision_recall_curve, average_precision_score
+)
+
+# -------------------------
+# 8.1 準確率 (Accuracy)
+# -------------------------
 print("\n" + "-" * 50)
-print("[步驟3] 混淆矩陣 (Confusion Matrix)")
+print("8.1 準確率 (Accuracy)")
 print("-" * 50)
 
-# 計算混淆矩陣
+accuracy = accuracy_score(y_test, y_pred)
+print(f"\n準確率 (Accuracy) = {accuracy:.4f} ({accuracy*100:.2f}%)")
+print(f"\n公式: Accuracy = (TP + TN) / (TP + TN + FP + FN)")
+
+# -------------------------
+# 8.2 混淆矩陣 (Confusion Matrix)
+# -------------------------
+print("\n" + "-" * 50)
+print("8.2 混淆矩陣 (Confusion Matrix)")
+print("-" * 50)
+
 cm = confusion_matrix(y_test, y_pred)
+tn, fp, fn, tp = cm.ravel()
 
-print("\n混淆矩陣:")
-print(cm)
+print(f"\n混淆矩陣:")
+print(f"              預測")
+print(f"              惡性    良性")
+print(f"實際 惡性    {tn:4d}    {fp:4d}")
+print(f"     良性    {fn:4d}    {tp:4d}")
 
-# 定義 make_cm 函式（來自 PDF）
-def make_cm(matrix, columns):
-    """
-    格式化混淆矩陣為 DataFrame
+print(f"\n詳細說明:")
+print(f"  - True Negative (TN): {tn} - 實際惡性，預測惡性")
+print(f"  - False Positive (FP): {fp} - 實際惡性，預測良性 (Type I Error)")
+print(f"  - False Negative (FN): {fn} - 實際良性，預測惡性 (Type II Error)")
+print(f"  - True Positive (TP): {tp} - 實際良性，預測良性")
 
-    Parameters:
-    -----------
-    matrix : array-like
-        混淆矩陣
-    columns : list
-        類別名稱
-
-    Returns:
-    --------
-    DataFrame : 格式化後的混淆矩陣
-    """
-    n = len(columns)
-    act = ['正確答案數據'] * n
-    pred = ['預測結果'] * n
-    cm_df = pd.DataFrame(matrix,
-                         columns=[pred, columns],
-                         index=[act, columns])
-    return cm_df
-
-# 使用 make_cm 函式格式化
-columns = ['惡性(0)', '良性(1)']
-cm_formatted = make_cm(cm, columns)
-print("\n格式化混淆矩陣:")
-print(cm_formatted)
-
-# 解釋混淆矩陣
-TN, FP, FN, TP = cm.ravel()
-print(f"\n混淆矩陣分解:")
-print(f"   TN (True Negative)  = {TN} (實際惡性, 預測惡性)")
-print(f"   FP (False Positive) = {FP} (實際惡性, 預測良性)")
-print(f"   FN (False Negative) = {FN} (實際良性, 預測惡性)")
-print(f"   TP (True Positive)  = {TP} (實際良性, 預測良性)")
-
-# 手動計算準確率
-accuracy_manual = (TP + TN) / (TP + TN + FP + FN)
-print(f"\n   手動計算準確率: (TP+TN)/(TP+TN+FP+FN) = {accuracy_manual:.4f}")
+# 儲存混淆矩陣 CSV
+cm_df = pd.DataFrame(cm,
+                     index=['實際: 惡性', '實際: 良性'],
+                     columns=['預測: 惡性', '預測: 良性'])
+cm_df.to_csv(f'{output_dir}/confusion_matrix.csv', encoding='utf-8-sig')
+print(f"\n已儲存: {output_dir}/confusion_matrix.csv")
 
 # 繪製混淆矩陣熱力圖
-plt.figure(figsize=(10, 8))
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['惡性 (0)', '良性 (1)'],
+            yticklabels=['惡性 (0)', '良性 (1)'],
+            annot_kws={'size': 16})
+plt.title('混淆矩陣 (Confusion Matrix)', fontsize=14, fontweight='bold')
+plt.xlabel('預測值', fontsize=12)
+plt.ylabel('實際值', fontsize=12)
 
-plt.subplot(1, 1, 1)
-im = plt.imshow(cm, cmap='Blues')
-plt.colorbar(im)
-
-# 加入數值標籤
-for i in range(2):
-    for j in range(2):
-        color = 'white' if cm[i, j] > cm.max()/2 else 'black'
-        plt.text(j, i, f'{cm[i, j]}', ha='center', va='center',
-                fontsize=20, color=color)
-
-plt.xticks([0, 1], ['惡性(0)', '良性(1)'])
-plt.yticks([0, 1], ['惡性(0)', '良性(1)'])
-plt.xlabel('預測結果')
-plt.ylabel('正確答案')
-plt.title(f'混淆矩陣 (Confusion Matrix)\n準確率 = {test_accuracy:.4f}')
+# 添加 TP, TN, FP, FN 標籤
+plt.text(0.5, 0.3, f'TN={tn}', ha='center', va='center', fontsize=10, color='gray')
+plt.text(1.5, 0.3, f'FP={fp}', ha='center', va='center', fontsize=10, color='gray')
+plt.text(0.5, 1.3, f'FN={fn}', ha='center', va='center', fontsize=10, color='gray')
+plt.text(1.5, 1.3, f'TP={tp}', ha='center', va='center', fontsize=10, color='gray')
 
 plt.tight_layout()
 plt.savefig(f'{output_dir}/confusion_matrix.png', dpi=150, bbox_inches='tight')
-print(f"\n   ✓ 圖片已儲存: confusion_matrix.png")
 plt.close()
+print(f"已儲存: {output_dir}/confusion_matrix.png")
 
-# ============================
-# 步驟5: 精確率/召回率/F1-score
-# ============================
-
-from sklearn.metrics import precision_recall_fscore_support, classification_report
-
+# -------------------------
+# 8.3 精確率 (Precision)
+# -------------------------
 print("\n" + "-" * 50)
-print("[步驟4] 精確率/召回率/F1-score")
+print("8.3 精確率 (Precision)")
 print("-" * 50)
 
-# 使用 precision_recall_fscore_support
-precision, recall, f1, support = precision_recall_fscore_support(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+print(f"\n精確率 (Precision) = {precision:.4f} ({precision*100:.2f}%)")
+print(f"\n公式: Precision = TP / (TP + FP) = {tp} / ({tp} + {fp}) = {tp/(tp+fp):.4f}")
+print(f"\n意義: 預測為良性的樣本中，實際為良性的比例")
 
-print("\n各類別評估指標:")
-print(f"{'類別':<10} {'精確率(Precision)':<20} {'召回率(Recall)':<18} {'F1-score':<12} {'支持度(Support)':<10}")
-print("-" * 70)
-for i, name in enumerate(['惡性(0)', '良性(1)']):
-    print(f"{name:<10} {precision[i]:<20.4f} {recall[i]:<18.4f} {f1[i]:<12.4f} {support[i]:<10}")
-
-# 手動計算精確率和召回率
-precision_manual = TP / (TP + FP)
-recall_manual = TP / (TP + FN)
-f1_manual = 2 * precision_manual * recall_manual / (precision_manual + recall_manual)
-
-print(f"\n手動計算 (以良性類別為例):")
-print(f"   精確率 (Precision) = TP/(TP+FP) = {TP}/({TP}+{FP}) = {precision_manual:.4f}")
-print(f"   召回率 (Recall)    = TP/(TP+FN) = {TP}/({TP}+{FN}) = {recall_manual:.4f}")
-print(f"   F1-score           = 2*P*R/(P+R) = {f1_manual:.4f}")
-
-# 完整分類報告
-print("\n完整分類報告 (Classification Report):")
-print(classification_report(y_test, y_pred, target_names=['惡性(0)', '良性(1)']))
-
-# ============================
-# 步驟6: PR 曲線 (Precision-Recall Curve)
-# ============================
-
-from sklearn.metrics import precision_recall_curve, auc
-
+# -------------------------
+# 8.4 召回率 (Recall)
+# -------------------------
 print("\n" + "-" * 50)
-print("[步驟5] PR 曲線 (Precision-Recall Curve)")
+print("8.4 召回率 (Recall / Sensitivity)")
 print("-" * 50)
 
-# 計算 PR 曲線
-precision_curve, recall_curve, thresholds_pr = precision_recall_curve(y_test, y_proba1)
+recall = recall_score(y_test, y_pred)
+print(f"\n召回率 (Recall) = {recall:.4f} ({recall*100:.2f}%)")
+print(f"\n公式: Recall = TP / (TP + FN) = {tp} / ({tp} + {fn}) = {tp/(tp+fn):.4f}")
+print(f"\n意義: 實際為良性的樣本中，被正確預測為良性的比例")
 
-# 計算 PR-AUC
-pr_auc = auc(recall_curve, precision_curve)
-
-print(f"\n   PR-AUC: {pr_auc:.4f}")
-print(f"   閾值數量: {len(thresholds_pr)}")
-
-# 繪製 PR 曲線
-plt.figure(figsize=(10, 8))
-
-plt.plot(recall_curve, precision_curve, 'b-', linewidth=2,
-         label=f'PR Curve (AUC = {pr_auc:.4f})')
-plt.fill_between(recall_curve, precision_curve, alpha=0.2)
-
-# 標記不同閾值點
-threshold_points = [0.3, 0.5, 0.7, 0.9]
-for thresh in threshold_points:
-    idx = np.argmin(np.abs(thresholds_pr - thresh))
-    if idx < len(precision_curve) - 1:
-        plt.scatter(recall_curve[idx], precision_curve[idx], s=100, zorder=5)
-        plt.annotate(f'閾值={thresh}',
-                    (recall_curve[idx], precision_curve[idx]),
-                    textcoords="offset points",
-                    xytext=(10, -10),
-                    fontsize=10)
-
-plt.xlabel('召回率 (Recall)')
-plt.ylabel('精確率 (Precision)')
-plt.title(f'PR 曲線 (Precision-Recall Curve)\nAUC = {pr_auc:.4f}')
-plt.legend(loc='lower left')
-plt.grid(True, alpha=0.3)
-plt.xlim([0, 1.05])
-plt.ylim([0, 1.05])
-
-plt.tight_layout()
-plt.savefig(f'{output_dir}/pr_curve.png', dpi=150, bbox_inches='tight')
-print(f"   ✓ 圖片已儲存: pr_curve.png")
-plt.close()
-
-# ============================
-# 步驟7: ROC 曲線 (Receiver Operating Characteristic)
-# ============================
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
+# -------------------------
+# 8.5 F1-score
+# -------------------------
 print("\n" + "-" * 50)
-print("[步驟6] ROC 曲線 (Receiver Operating Characteristic)")
+print("8.5 F1-score")
+print("-" * 50)
+
+f1 = f1_score(y_test, y_pred)
+print(f"\nF1-score = {f1:.4f}")
+print(f"\n公式: F1 = 2 * (Precision * Recall) / (Precision + Recall)")
+print(f"     F1 = 2 * ({precision:.4f} * {recall:.4f}) / ({precision:.4f} + {recall:.4f})")
+print(f"     F1 = {2 * precision * recall / (precision + recall):.4f}")
+print(f"\n意義: 精確率與召回率的調和平均數")
+
+# -------------------------
+# 8.6 分類報告 (Classification Report)
+# -------------------------
+print("\n" + "-" * 50)
+print("8.6 分類報告 (Classification Report)")
+print("-" * 50)
+
+print("\n完整分類報告:")
+report = classification_report(y_test, y_pred,
+                               target_names=['惡性 (malignant)', '良性 (benign)'])
+print(report)
+
+# -------------------------
+# 8.7 ROC 曲線與 AUC
+# -------------------------
+print("\n" + "-" * 50)
+print("8.7 ROC 曲線與 AUC")
 print("-" * 50)
 
 # 計算 ROC 曲線
-fpr, tpr, thresholds_roc = roc_curve(y_test, y_proba1)
-
-# 計算 ROC-AUC
+fpr, tpr, thresholds_roc = roc_curve(y_test, y_pred_proba[:, 1])
 roc_auc = auc(fpr, tpr)
-roc_auc_score_val = roc_auc_score(y_test, y_proba1)
 
-print(f"\n   ROC-AUC (auc函式): {roc_auc:.4f}")
-print(f"   ROC-AUC (roc_auc_score): {roc_auc_score_val:.4f}")
-print(f"   閾值數量: {len(thresholds_roc)}")
+print(f"\nAUC (Area Under ROC Curve) = {roc_auc:.4f}")
+print(f"\nROC 曲線說明:")
+print(f"  - 橫軸: False Positive Rate (FPR) = FP / (FP + TN)")
+print(f"  - 縱軸: True Positive Rate (TPR) = TP / (TP + FN) = Recall")
+print(f"  - AUC 越接近 1 表示模型效能越好")
 
 # 繪製 ROC 曲線
-plt.figure(figsize=(10, 8))
-
-plt.plot(fpr, tpr, 'b-', linewidth=2,
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, color='#e74c3c', lw=2,
          label=f'ROC Curve (AUC = {roc_auc:.4f})')
-plt.plot([0, 1], [0, 1], 'r--', linewidth=1, label='Random Classifier (AUC = 0.5)')
-plt.fill_between(fpr, tpr, alpha=0.2)
-
-# 標記不同閾值點
-for thresh in threshold_points:
-    idx = np.argmin(np.abs(thresholds_roc - thresh))
-    if idx < len(fpr):
-        plt.scatter(fpr[idx], tpr[idx], s=100, zorder=5)
-        plt.annotate(f'閾值={thresh}',
-                    (fpr[idx], tpr[idx]),
-                    textcoords="offset points",
-                    xytext=(10, -10),
-                    fontsize=10)
-
-plt.xlabel('假陽性率 (False Positive Rate)')
-plt.ylabel('真陽性率 (True Positive Rate)')
-plt.title(f'ROC 曲線 (Receiver Operating Characteristic)\nAUC = {roc_auc:.4f}')
-plt.legend(loc='lower right')
+plt.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--',
+         label='Random Classifier (AUC = 0.5)')
+plt.fill_between(fpr, tpr, alpha=0.3, color='#e74c3c')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate (FPR)', fontsize=12)
+plt.ylabel('True Positive Rate (TPR)', fontsize=12)
+plt.title('ROC 曲線 (Receiver Operating Characteristic)', fontsize=14, fontweight='bold')
+plt.legend(loc='lower right', fontsize=10)
 plt.grid(True, alpha=0.3)
-plt.xlim([0, 1.05])
-plt.ylim([0, 1.05])
-
 plt.tight_layout()
 plt.savefig(f'{output_dir}/roc_curve.png', dpi=150, bbox_inches='tight')
-print(f"   ✓ 圖片已儲存: roc_curve.png")
 plt.close()
+print(f"\n已儲存: {output_dir}/roc_curve.png")
 
-# 繪製 PR 曲線和 ROC 曲線並排比較
-plt.figure(figsize=(14, 6))
+# -------------------------
+# 8.8 PR 曲線
+# -------------------------
+print("\n" + "-" * 50)
+print("8.8 PR 曲線 (Precision-Recall Curve)")
+print("-" * 50)
 
-plt.subplot(1, 2, 1)
-plt.plot(recall_curve, precision_curve, 'b-', linewidth=2,
-         label=f'PR Curve (AUC = {pr_auc:.4f})')
-plt.fill_between(recall_curve, precision_curve, alpha=0.2)
-plt.xlabel('召回率 (Recall)')
-plt.ylabel('精確率 (Precision)')
-plt.title('PR 曲線')
-plt.legend(loc='lower left')
+# 計算 PR 曲線
+precision_curve, recall_curve, thresholds_pr = precision_recall_curve(y_test, y_pred_proba[:, 1])
+ap = average_precision_score(y_test, y_pred_proba[:, 1])
+
+print(f"\nAverage Precision (AP) = {ap:.4f}")
+print(f"\nPR 曲線說明:")
+print(f"  - 橫軸: Recall (召回率)")
+print(f"  - 縱軸: Precision (精確率)")
+print(f"  - AP 是 PR 曲線下的面積，越接近 1 越好")
+
+# 繪製 PR 曲線
+plt.figure(figsize=(8, 6))
+plt.plot(recall_curve, precision_curve, color='#3498db', lw=2,
+         label=f'PR Curve (AP = {ap:.4f})')
+plt.fill_between(recall_curve, precision_curve, alpha=0.3, color='#3498db')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Recall (召回率)', fontsize=12)
+plt.ylabel('Precision (精確率)', fontsize=12)
+plt.title('PR 曲線 (Precision-Recall Curve)', fontsize=14, fontweight='bold')
+plt.legend(loc='lower left', fontsize=10)
 plt.grid(True, alpha=0.3)
-plt.xlim([0, 1.05])
-plt.ylim([0, 1.05])
+plt.tight_layout()
+plt.savefig(f'{output_dir}/pr_curve.png', dpi=150, bbox_inches='tight')
+plt.close()
+print(f"\n已儲存: {output_dir}/pr_curve.png")
 
-plt.subplot(1, 2, 2)
-plt.plot(fpr, tpr, 'b-', linewidth=2,
-         label=f'ROC Curve (AUC = {roc_auc:.4f})')
-plt.plot([0, 1], [0, 1], 'r--', linewidth=1, label='Random Classifier')
-plt.fill_between(fpr, tpr, alpha=0.2)
-plt.xlabel('假陽性率 (FPR)')
-plt.ylabel('真陽性率 (TPR)')
-plt.title('ROC 曲線')
-plt.legend(loc='lower right')
-plt.grid(True, alpha=0.3)
-plt.xlim([0, 1.05])
-plt.ylim([0, 1.05])
+# -------------------------
+# 8.9 綜合比較圖
+# -------------------------
+print("\n" + "-" * 50)
+print("8.9 ROC 與 PR 曲線比較")
+print("-" * 50)
 
-plt.suptitle('PR 曲線與 ROC 曲線比較', fontsize=16, y=1.02)
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# ROC 曲線
+axes[0].plot(fpr, tpr, color='#e74c3c', lw=2,
+             label=f'ROC Curve (AUC = {roc_auc:.4f})')
+axes[0].plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
+axes[0].fill_between(fpr, tpr, alpha=0.3, color='#e74c3c')
+axes[0].set_xlim([0.0, 1.0])
+axes[0].set_ylim([0.0, 1.05])
+axes[0].set_xlabel('False Positive Rate', fontsize=11)
+axes[0].set_ylabel('True Positive Rate', fontsize=11)
+axes[0].set_title('ROC 曲線', fontsize=13, fontweight='bold')
+axes[0].legend(loc='lower right', fontsize=9)
+axes[0].grid(True, alpha=0.3)
+
+# PR 曲線
+axes[1].plot(recall_curve, precision_curve, color='#3498db', lw=2,
+             label=f'PR Curve (AP = {ap:.4f})')
+axes[1].fill_between(recall_curve, precision_curve, alpha=0.3, color='#3498db')
+axes[1].set_xlim([0.0, 1.0])
+axes[1].set_ylim([0.0, 1.05])
+axes[1].set_xlabel('Recall', fontsize=11)
+axes[1].set_ylabel('Precision', fontsize=11)
+axes[1].set_title('PR 曲線', fontsize=13, fontweight='bold')
+axes[1].legend(loc='lower left', fontsize=9)
+axes[1].grid(True, alpha=0.3)
+
 plt.tight_layout()
 plt.savefig(f'{output_dir}/pr_roc_comparison.png', dpi=150, bbox_inches='tight')
-print(f"   ✓ 圖片已儲存: pr_roc_comparison.png")
 plt.close()
+print(f"\n已儲存: {output_dir}/pr_roc_comparison.png")
 
-# ============================
-# 二元分類評估總結
-# ============================
-
-print("\n" + "=" * 60)
-print("Part 1 總結: 二元分類評估結果")
-print("=" * 60)
-
-classification_summary = {
-    '指標': ['準確率 (Accuracy)', '精確率 (Precision)', '召回率 (Recall)',
-             'F1-score', 'PR-AUC', 'ROC-AUC'],
-    '數值': [test_accuracy, precision[1], recall[1], f1[1], pr_auc, roc_auc]
-}
-
-df_classification = pd.DataFrame(classification_summary)
-print("\n")
-print(df_classification.to_string(index=False))
-
-# ============================
-# Part 2: 迴歸評估
-# Regression Evaluation
-# ============================
-
-print("\n" + "=" * 60)
-print("Part 2: 迴歸評估 (Regression Evaluation)")
-print("=" * 60)
-
-# ============================
-# 步驟8: 載入迴歸資料集
-# ============================
-
-from sklearn.datasets import fetch_california_housing
-
-print("\n[步驟7] 載入 California Housing 資料集...")
-
-# 載入加州房價資料集
-housing = fetch_california_housing()
-X_reg = housing.data
-y_reg = housing.target
-feature_names_reg = housing.feature_names
-
-print(f"   資料集大小: {X_reg.shape[0]} 筆資料, {X_reg.shape[1]} 個特徵")
-print(f"   特徵名稱: {feature_names_reg}")
-print(f"   目標值範圍: {y_reg.min():.2f} ~ {y_reg.max():.2f} (單位: $100,000)")
-
-# 分割訓練集與測試集
-X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
-    X_reg, y_reg, test_size=0.3, random_state=random_seed
-)
-
-print(f"\n   訓練集大小: {X_train_reg.shape[0]} 筆")
-print(f"   測試集大小: {X_test_reg.shape[0]} 筆")
-
-# ============================
-# 步驟9: 訓練迴歸模型
-# ============================
-
-from sklearn.linear_model import LinearRegression
-
-print("\n[步驟8] 訓練 Linear Regression 模型...")
-
-# 訓練線性迴歸模型
-reg_model = LinearRegression()
-reg_model.fit(X_train_reg, y_train_reg)
-
-# 進行預測
-y_pred_reg = reg_model.predict(X_test_reg)
-
-print(f"   模型已訓練完成")
-print(f"\n   預測結果範例 (前5筆):")
-print(f"   實際值: {y_test_reg[:5].round(4)}")
-print(f"   預測值: {y_pred_reg[:5].round(4)}")
-
-# ============================
-# 步驟10: 迴歸評估指標
-# ============================
-
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
+# -------------------------
+# 特徵重要性圖
+# -------------------------
 print("\n" + "-" * 50)
-print("[步驟9] 迴歸評估指標")
+print("特徵重要性分析")
 print("-" * 50)
 
-# 計算評估指標
-mse = mean_squared_error(y_test_reg, y_pred_reg)
-rmse = np.sqrt(mse)
-mae = mean_absolute_error(y_test_reg, y_pred_reg)
-r2 = r2_score(y_test_reg, y_pred_reg)
-
-print(f"\n迴歸評估指標:")
-print(f"   MSE  (Mean Squared Error)        = {mse:.4f}")
-print(f"   RMSE (Root Mean Squared Error)   = {rmse:.4f}")
-print(f"   MAE  (Mean Absolute Error)       = {mae:.4f}")
-print(f"   R²   (Coefficient of Determination) = {r2:.4f}")
-
-# 手動計算示範
-print(f"\n評估指標公式說明:")
-print(f"   MSE  = (1/n) * Σ(yi - ŷi)²")
-print(f"   RMSE = √MSE")
-print(f"   MAE  = (1/n) * Σ|yi - ŷi|")
-print(f"   R²   = 1 - (SS_res / SS_tot)")
-
-# 計算殘差
-residuals = y_test_reg - y_pred_reg
-
-print(f"\n殘差統計:")
-print(f"   殘差平均值: {residuals.mean():.6f}")
-print(f"   殘差標準差: {residuals.std():.4f}")
-print(f"   殘差最小值: {residuals.min():.4f}")
-print(f"   殘差最大值: {residuals.max():.4f}")
-
-# ============================
-# 步驟11: 迴歸視覺化
-# ============================
-
-print("\n" + "-" * 50)
-print("[步驟10] 迴歸視覺化")
-print("-" * 50)
-
-# 繪製預測值 vs 實際值散布圖
-plt.figure(figsize=(14, 6))
-
-plt.subplot(1, 2, 1)
-plt.scatter(y_test_reg, y_pred_reg, alpha=0.5, s=20)
-plt.plot([y_test_reg.min(), y_test_reg.max()],
-         [y_test_reg.min(), y_test_reg.max()],
-         'r--', linewidth=2, label='完美預測線')
-plt.xlabel('實際值 (Actual)')
-plt.ylabel('預測值 (Predicted)')
-plt.title(f'預測值 vs 實際值\nR² = {r2:.4f}')
-plt.legend()
-plt.grid(True, alpha=0.3)
-
-# 繪製殘差圖
-plt.subplot(1, 2, 2)
-plt.scatter(y_pred_reg, residuals, alpha=0.5, s=20)
-plt.axhline(y=0, color='r', linestyle='--', linewidth=2)
-plt.xlabel('預測值 (Predicted)')
-plt.ylabel('殘差 (Residual)')
-plt.title(f'殘差圖\nMAE = {mae:.4f}, RMSE = {rmse:.4f}')
-plt.grid(True, alpha=0.3)
-
-plt.suptitle('California Housing 迴歸分析', fontsize=16, y=1.02)
+plt.figure(figsize=(12, 8))
+top_features = feature_importance.head(15)
+colors = ['#e74c3c' if x < 0 else '#2ecc71' for x in top_features['coefficient']]
+bars = plt.barh(range(len(top_features)), top_features['coefficient'], color=colors)
+plt.yticks(range(len(top_features)), top_features['feature'])
+plt.xlabel('係數值 (Coefficient)', fontsize=12)
+plt.ylabel('特徵名稱', fontsize=12)
+plt.title('邏輯斯迴歸特徵重要性 (前 15 名)', fontsize=14, fontweight='bold')
+plt.axvline(x=0, color='black', linestyle='-', linewidth=0.5)
+plt.gca().invert_yaxis()
 plt.tight_layout()
-plt.savefig(f'{output_dir}/regression_scatter.png', dpi=150, bbox_inches='tight')
-print(f"   ✓ 圖片已儲存: regression_scatter.png")
+plt.savefig(f'{output_dir}/feature_importance.png', dpi=150, bbox_inches='tight')
 plt.close()
-
-# 繪製殘差分布直方圖
-plt.figure(figsize=(10, 6))
-
-plt.hist(residuals, bins=50, edgecolor='black', alpha=0.7)
-plt.axvline(x=0, color='r', linestyle='--', linewidth=2, label='零殘差線')
-plt.axvline(x=residuals.mean(), color='g', linestyle='-', linewidth=2,
-            label=f'殘差平均值 ({residuals.mean():.4f})')
-plt.xlabel('殘差值')
-plt.ylabel('頻率')
-plt.title('殘差分布直方圖')
-plt.legend()
-plt.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig(f'{output_dir}/residual_histogram.png', dpi=150, bbox_inches='tight')
-print(f"   ✓ 圖片已儲存: residual_histogram.png")
-plt.close()
+print(f"\n已儲存: {output_dir}/feature_importance.png")
 
 # ============================
-# 迴歸評估總結
+# 結果總結
 # ============================
 
-print("\n" + "=" * 60)
-print("Part 2 總結: 迴歸評估結果")
-print("=" * 60)
+print("\n" + "=" * 70)
+print("模型評估結果總結")
+print("=" * 70)
 
-regression_summary = {
-    '指標': ['MSE', 'RMSE', 'MAE', 'R²'],
-    '數值': [mse, rmse, mae, r2],
-    '說明': ['均方誤差', '均方根誤差', '平均絕對誤差', '決定係數']
+summary_data = {
+    '評估指標': ['準確率 (Accuracy)', '精確率 (Precision)', '召回率 (Recall)',
+                'F1-score', 'ROC AUC', 'Average Precision'],
+    '數值': [accuracy, precision, recall, f1, roc_auc, ap],
+    '百分比': [f'{accuracy*100:.2f}%', f'{precision*100:.2f}%', f'{recall*100:.2f}%',
+              f'{f1*100:.2f}%', f'{roc_auc*100:.2f}%', f'{ap*100:.2f}%']
 }
 
-df_regression = pd.DataFrame(regression_summary)
+summary_df = pd.DataFrame(summary_data)
 print("\n")
-print(df_regression.to_string(index=False))
+print(summary_df.to_string(index=False))
 
-# ============================
 # 儲存評估結果
-# ============================
+summary_df.to_csv(f'{output_dir}/evaluation_summary.csv', index=False, encoding='utf-8-sig')
+print(f"\n已儲存: {output_dir}/evaluation_summary.csv")
 
-print("\n" + "=" * 60)
-print("儲存評估結果")
-print("=" * 60)
+print("\n" + "=" * 70)
+print("所有輸出檔案")
+print("=" * 70)
+print(f"""
+1. {output_dir}/class_distribution.png    - 類別分布圖
+2. {output_dir}/confusion_matrix.png      - 混淆矩陣熱力圖
+3. {output_dir}/confusion_matrix.csv      - 混淆矩陣數據
+4. {output_dir}/roc_curve.png             - ROC 曲線圖
+5. {output_dir}/pr_curve.png              - PR 曲線圖
+6. {output_dir}/pr_roc_comparison.png     - ROC 與 PR 比較圖
+7. {output_dir}/feature_importance.png    - 特徵重要性圖
+8. {output_dir}/evaluation_summary.csv    - 評估指標摘要
+""")
 
-# 合併所有評估結果
-all_results = []
-
-# 分類評估結果
-for i, (metric, value) in enumerate(zip(classification_summary['指標'],
-                                         classification_summary['數值'])):
-    all_results.append({
-        '類型': '分類評估',
-        '指標': metric,
-        '數值': value
-    })
-
-# 迴歸評估結果
-for i, (metric, value, desc) in enumerate(zip(regression_summary['指標'],
-                                               regression_summary['數值'],
-                                               regression_summary['說明'])):
-    all_results.append({
-        '類型': '迴歸評估',
-        '指標': f'{metric} ({desc})',
-        '數值': value
-    })
-
-df_all_results = pd.DataFrame(all_results)
-df_all_results.to_csv(f'{output_dir}/evaluation_summary.csv', index=False, encoding='utf-8-sig')
-print(f"   ✓ 評估結果已儲存: evaluation_summary.csv")
-
-# 儲存混淆矩陣
-cm_df = pd.DataFrame(cm,
-                     columns=['預測_惡性(0)', '預測_良性(1)'],
-                     index=['實際_惡性(0)', '實際_良性(1)'])
-cm_df.to_csv(f'{output_dir}/confusion_matrix.csv', encoding='utf-8-sig')
-print(f"   ✓ 混淆矩陣已儲存: confusion_matrix.csv")
-
-# ============================
-# 大數據分析流程總結
-# ============================
-
-print("\n" + "=" * 60)
-print("大數據分析八步驟流程總結")
-print("=" * 60)
-
-steps = """
-1. 定義問題 (Define Problem)
-   - 明確分析目標：分類？迴歸？聚類？
-
-2. 蒐集資料 (Collect Data)
-   - 資料來源：資料庫、API、CSV、Web Scraping
-
-3. 資料探索 (Explore Data)
-   - 統計描述、視覺化、缺失值檢查
-
-4. 資料預處理 (Preprocess Data)
-   - 處理缺失值、編碼分類變數、標準化/正規化
-
-5. 特徵工程 (Feature Engineering)
-   - 特徵選取、特徵轉換、降維
-
-6. 建立模型 (Build Model)
-   - 選擇演算法、訓練模型
-
-7. 評估模型 (Evaluate Model)  ← Week 14 & 15 主題
-   - 分類：Accuracy, Precision, Recall, F1, ROC-AUC
-   - 迴歸：MSE, RMSE, MAE, R²
-
-8. 部署應用 (Deploy Model)
-   - 模型儲存、API服務、監控維護
-"""
-
-print(steps)
-
-# ============================
-# 完成
-# ============================
-
-print("\n" + "=" * 60)
-print("程式執行完成！")
-print("=" * 60)
-
-print(f"\n所有輸出檔案已儲存至: {output_dir}/")
-print("\n生成的檔案清單:")
-import glob
-output_files = glob.glob(f'{output_dir}/*')
-for f in sorted(output_files):
-    print(f"   - {os.path.basename(f)}")
-
-print("\n" + "=" * 60)
-print("Week 14 & 15 模型評估練習完成！")
-print("=" * 60)
+print("=" * 70)
+print("程式執行完成!")
+print("=" * 70)
